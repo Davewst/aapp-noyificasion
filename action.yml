@@ -1,14 +1,14 @@
-name: "Teams Failure Alert"
-description: "Post a failure alert to a Teams channel via a Power Automate Workflow webhook."
+name: "Teams Build Alert"
+description: "Post a build pass/fail alert to a Teams channel via a Power Automate Workflow webhook."
 
 inputs:
   webhook:
     description: "Power Automate Workflow webhook URL. Pass from a secret."
     required: true
-  title:
-    description: "Headline shown on the card."
+  status:
+    description: "Build result: failure or success."
     required: false
-    default: "Pipeline failed"
+    default: "failure"
   repo:
     description: "Repository name."
     required: false
@@ -26,13 +26,9 @@ inputs:
     required: false
     default: ${{ github.actor }}
   run-url:
-    description: "Link to the failing run."
+    description: "Link to the run."
     required: false
     default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  color:
-    description: "Card accent: red, yellow, green, blue."
-    required: false
-    default: "red"
 
 runs:
   using: "composite"
@@ -42,13 +38,12 @@ runs:
         # A composite action cannot read the secrets context itself, so the
         # webhook arrives as an input and is handed to the script via env.
         TEAMS_WEBHOOK: ${{ inputs.webhook }}
-        ALERT_TITLE: ${{ inputs.title }}
+        ALERT_STATUS: ${{ inputs.status }}
         ALERT_REPO: ${{ inputs.repo }}
         ALERT_WORKFLOW: ${{ inputs.workflow }}
         ALERT_BRANCH: ${{ inputs.branch }}
         ALERT_ACTOR: ${{ inputs.actor }}
         ALERT_URL: ${{ inputs.run-url }}
-        ALERT_COLOR: ${{ inputs.color }}
       # github.action_path points at this action's own checkout, so the bundled
       # script is found regardless of which repo is calling the action.
       run: python3 "${{ github.action_path }}/notify.py"
