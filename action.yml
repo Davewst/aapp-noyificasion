@@ -1,0 +1,54 @@
+name: "Teams Failure Alert"
+description: "Post a failure alert to a Teams channel via a Power Automate Workflow webhook."
+
+inputs:
+  webhook:
+    description: "Power Automate Workflow webhook URL. Pass from a secret."
+    required: true
+  title:
+    description: "Headline shown on the card."
+    required: false
+    default: "Pipeline failed"
+  repo:
+    description: "Repository name."
+    required: false
+    default: ${{ github.repository }}
+  workflow:
+    description: "Workflow name."
+    required: false
+    default: ${{ github.workflow }}
+  branch:
+    description: "Branch / ref name."
+    required: false
+    default: ${{ github.ref_name }}
+  actor:
+    description: "User who triggered the run."
+    required: false
+    default: ${{ github.actor }}
+  run-url:
+    description: "Link to the failing run."
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  color:
+    description: "Card accent: red, yellow, green, blue."
+    required: false
+    default: "red"
+
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        # A composite action cannot read the secrets context itself, so the
+        # webhook arrives as an input and is handed to the script via env.
+        TEAMS_WEBHOOK: ${{ inputs.webhook }}
+        ALERT_TITLE: ${{ inputs.title }}
+        ALERT_REPO: ${{ inputs.repo }}
+        ALERT_WORKFLOW: ${{ inputs.workflow }}
+        ALERT_BRANCH: ${{ inputs.branch }}
+        ALERT_ACTOR: ${{ inputs.actor }}
+        ALERT_URL: ${{ inputs.run-url }}
+        ALERT_COLOR: ${{ inputs.color }}
+      # github.action_path points at this action's own checkout, so the bundled
+      # script is found regardless of which repo is calling the action.
+      run: python3 "${{ github.action_path }}/notify.py"
