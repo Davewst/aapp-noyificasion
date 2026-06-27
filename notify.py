@@ -1,32 +1,49 @@
-#!/usr/bin/env python3
-"""Post a build pass/fail alert to Teams via a Power Automate webhook (stdlib, py3.6+)."""
-import json, os, urllib.request, urllib.error
+name: "Teams Build Alert"
+description: "Post a build pass/fail alert to a Teams channel via a Power Automate Workflow webhook."
 
-env = os.environ
-webhook = env.get("TEAMS_WEBHOOK")
-if not webhook:
-    print("TEAMS_WEBHOOK not set; skipping alert.")
-    raise SystemExit(0)
+inputs:
+  webhook:
+    description: "Power Automate Workflow webhook URL. Pass from a secret."
+    required: true
+  status:
+    description: "Build result: failure or success."
+    required: false
+    default: "failure"
+  repo:
+    description: "Repository name."
+    required: false
+    default: ${{ github.repository }}
+  workflow:
+    description: "Workflow name."
+    required: false
+    default: ${{ github.workflow }}
+  branch:
+    description: "Branch / ref name."
+    required: false
+    default: ${{ github.ref_name }}
+  actor:
+    description: "User who triggered the run."
+    required: false
+    default: ${{ github.actor }}
+  run-url:
+    description: "Link to the run."
+    required: false
+    default: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-passed = env.get("ALERT_STATUS", "failure") == "success"
-head, color = ("Pipeline passed", "Good") if passed else ("Pipeline failed", "Attention")
-
-payload = {"type": "message", "attachments": [{
-    "contentType": "application/vnd.microsoft.card.adaptive",
-    "content": {"type": "AdaptiveCard", "version": "1.4",
-        "body": [
-            {"type": "TextBlock", "size": "Large", "weight": "Bolder", "wrap": True,
-             "color": color, "text": "{}: {}".format(head, env.get("ALERT_REPO", ""))},
-            {"type": "FactSet", "facts": [
-                {"title": "Workflow", "value": env.get("ALERT_WORKFLOW", "")},
-                {"title": "Branch", "value": env.get("ALERT_BRANCH", "")},
-                {"title": "Actor", "value": env.get("ALERT_ACTOR", "")}]}],
-        "actions": [{"type": "Action.OpenUrl", "title": "View run",
-                     "url": env.get("ALERT_URL", "")}]}}]}
-
-req = urllib.request.Request(webhook, json.dumps(payload).encode(), method="POST",
-                            headers={"Content-Type": "application/json"})
-try:
-    print("Teams alert -> HTTP", urllib.request.urlopen(req, timeout=10).getcode())
-except (urllib.error.HTTPError, urllib.error.URLError) as e:
-    print("Teams alert failed ->", getattr(e, "code", None) or e.reason)
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        # A composite action cannot read the secrets context itself, so the
+        # webhook arrives as an input and is handed to the script via env.
+        TEAMS_WEBHOOK: ${{ inputs.webhook }}
+        ALERT_STATUS: ${{ inputs.status }}
+        ALERT_REPO: ${{ inputs.repo }}
+        ALERT_WORKFLOW: ${{ inputs.workflow }}
+        ALERT_BRANCH: ${{ inputs.branch }}
+        ALERT_ACTOR: ${{ inputs.actor }}
+        ALERT_URL: ${{ inputs.run-url }}
+      # github.action_path points at this action's own checkout, so the bundled
+      # script is found regardless of which repo is calling the action.
+      run: python3 "${{ github.action_path }}/notify.py"
